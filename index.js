@@ -1,8 +1,16 @@
 let express = require("express");
 let request = require("request");
 let querystring = require("querystring");
+const { Client } = require("pg");
 
 let app = express();
+
+const client = new Client({
+  connectionString: process.env.DATABASE_URL,
+  ssl: true
+});
+
+client.connect();
 
 let redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
 app.use(function(req, res, next) {
@@ -14,12 +22,19 @@ app.use(function(req, res, next) {
   next();
 });
 
+app.get("/", function(req, res) {
+  client.query("CREATE TABLE fholyshit").then(() => {
+    res.send("created successfuly");
+  });
+});
+
 app.get("/login", function(req, res) {
   res.redirect(
     "https://accounts.spotify.com/authorize?" +
       querystring.stringify({
         response_type: "code",
-        client_id: process.env.SPOTIFY_CLIENT_ID,
+        client_id:
+          process.env.SPOTIFY_CLIENT_ID || "6a1792e23f7a48c8accf88c6d4991909",
         scope: "user-read-private user-read-email",
         redirect_uri
       })

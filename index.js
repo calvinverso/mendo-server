@@ -1,16 +1,12 @@
 let express = require("express");
 let request = require("request");
+const bodyParser = require("body-parser");
 let querystring = require("querystring");
 const { Client } = require("pg");
 
 let app = express();
 
-const client = new Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: true
-});
-
-client.connect();
+require("dotenv").config();
 
 let redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
 app.use(function(req, res, next) {
@@ -21,11 +17,36 @@ app.use(function(req, res, next) {
   );
   next();
 });
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
 
-app.get("/", function(req, res) {
-  client.query("CREATE TABLE fholyshit").then(() => {
-    res.send("created successfuly");
-  });
+const client = new Client({
+  connectionString: `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_DATABASE}`,
+  ssl: true
+});
+
+client.connect().then((res, req, err) => {
+  console.log("CONNECTIOR ERROR " + err);
+});
+
+app.get("/", function(req, res, next) {
+  res.send("hola");
+  console.log("paso?");
+  console.log(process.env.DATABASE_URL);
+  console.log(process.env.DB_DATABASE);
+  client.query(
+    "CREATE TABLE books (ID SERIAL PRIMARY KEY, author VARCHAR(255) NOT NULL, title VARCHAR(255) NOT NULL);",
+    (err, res) => {
+      if (err) throw err;
+      console.log("solo aqui");
+      for (let row of res.rows) {
+        console.log("paso?");
+        console.log(JSON.stringify(row));
+      }
+      client.end();
+    }
+  );
+  next();
 });
 
 app.get("/login", function(req, res) {
@@ -40,6 +61,7 @@ app.get("/login", function(req, res) {
       })
   );
 });
+
 
 app.get("/callback", function(req, res) {
   let code = req.query.code || null;
@@ -61,11 +83,23 @@ app.get("/callback", function(req, res) {
     },
     json: true
   };
+  var access_token;
   request.post(authOptions, function(error, response, body) {
-    var access_token = body.access_token;
+    access_token = body.access_token || "BQAJsc0THGlaRdUccLWWPZD1zokb2xuQIrmA0ywTbDzGOnIV3hdpdp5yMJuoJt08HnscEMizxXz61Zw75p1vbbSjXgjW3TzYP38v0IYlLcS8m1BRs-9s8wMmpROBPfHKifPGV99h_8YFp3HjIQkyxR2nYCtcHtf-v-HW";
     let uri = process.env.FRONTEND_URI || "http://localhost:3000";
     res.redirect(uri + "?access_token=" + access_token);
   });
+
+let userInfo = {
+  url: 'https://api.spotify.com/v1/users/calvinspnz',
+  headers: {
+    'Authorization': 'Bearer ' + 'BQAJsc0THGlaRdUccLWWPZD1zokb2xuQIrmA0ywTbDzGOnIV3hdpdp5yMJuoJt08HnscEMizxXz61Zw75p1vbbSjXgjW3TzYP38v0IYlLcS8m1BRs-9s8wMmpROBPfHKifPGV99h_8YFp3HjIQkyxR2nYCtcHtf-v-HW', 
+    'Content-Type': 'application/json'
+  },
+}
+  request.get(userInfo, function(err, res, body){
+    console.log(body);
+  })
 });
 
 let port = process.env.PORT || 8888;

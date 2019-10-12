@@ -10,7 +10,7 @@ require("dotenv").config();
 
 let redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
 app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "YOUR-DOMAIN.TLD"); // update to match the domain you will make the request from
+  res.header("Access-Control-Allow-Origin", "*"); 
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept"
@@ -25,9 +25,7 @@ const client = new Client({
   ssl: true
 });
 
-client.connect().then((res, req, err) => {
-  console.log("CONNECTIOR ERROR " + err);
-});
+client.connect();
 
 app.get("/", function(req, res, next) {
   res.send("hola");
@@ -56,7 +54,7 @@ app.get("/login", function(req, res) {
         response_type: "code",
         client_id:
           process.env.SPOTIFY_CLIENT_ID || "6a1792e23f7a48c8accf88c6d4991909",
-        scope: "user-read-private user-read-email",
+        scope: "user-read-private user-read-email user-top-read user-read-currently-playing user-read-playback-state",
         redirect_uri
       })
   );
@@ -86,7 +84,7 @@ app.get("/callback", (req, res) => {
   request.post(authOptions, (error, response, body) => {
     access_token =
       body.access_token ||
-      "BQChp7ERXJOglr9Y4uJTJ2Tb9omXCNLpAPO0M-jZ12XWwPciE2ahmcpXfEi4BA7hfl0Ilhg3ruRycDNqAW4gXzzvPMIqft8v3zedOdQ2bsD6xg7C9UG3uo5L4SL2cviZx0YlrnPp1qfCa2bROvCo9aHQqwKeNkiLPMXy";
+      "BQAQV1Xws1dDOXLpcfbvIMsCHybJUjsos2drwC9oi7_xhJ8YZzUj7CRFNyEgFHCGX2p4MhYhwjXyA9O54JZz61QxJifmTpr-yOd7x0ayc3rqT3KpMbQYOBkCrTQeCGZYDq4022c2JdASB1NnMSzcq36QIsmyvzguJDNH";
     let uri = process.env.FRONTEND_URI || "http://localhost:3000";
     res.redirect(uri + "?access_token=" + access_token);
     let userInfo = {
@@ -102,11 +100,10 @@ app.get("/callback", (req, res) => {
       var info = JSON.parse(body);
       console.log(info.id);
       client.query(
-        "INSERT INTO users (id,  data, display_name) VALUES ($1, $2, $3)",
+        "INSERT INTO users(id, data, display_name) SELECT $1, $2, $3 on conflict (id) do nothing;",
         [info.id, info, info.display_name],
-        (err, res) => {
-          console.error(err);
-          client.end();
+        (err) => {
+          if (err) throw err
         });
     });
   });

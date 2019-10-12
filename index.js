@@ -43,7 +43,7 @@ app.get("/", function(req, res, next) {
         console.log("paso?");
         console.log(JSON.stringify(row));
       }
-      client.end();
+      //client.end();
     }
   );
   next();
@@ -62,8 +62,7 @@ app.get("/login", function(req, res) {
   );
 });
 
-
-app.get("/callback", function(req, res) {
+app.get("/callback", (req, res) => {
   let code = req.query.code || null;
   let authOptions = {
     url: "https://accounts.spotify.com/api/token",
@@ -84,22 +83,33 @@ app.get("/callback", function(req, res) {
     json: true
   };
   var access_token;
-  request.post(authOptions, function(error, response, body) {
-    access_token = body.access_token || "BQAJsc0THGlaRdUccLWWPZD1zokb2xuQIrmA0ywTbDzGOnIV3hdpdp5yMJuoJt08HnscEMizxXz61Zw75p1vbbSjXgjW3TzYP38v0IYlLcS8m1BRs-9s8wMmpROBPfHKifPGV99h_8YFp3HjIQkyxR2nYCtcHtf-v-HW";
+  request.post(authOptions, (error, response, body) => {
+    access_token =
+      body.access_token ||
+      "BQChp7ERXJOglr9Y4uJTJ2Tb9omXCNLpAPO0M-jZ12XWwPciE2ahmcpXfEi4BA7hfl0Ilhg3ruRycDNqAW4gXzzvPMIqft8v3zedOdQ2bsD6xg7C9UG3uo5L4SL2cviZx0YlrnPp1qfCa2bROvCo9aHQqwKeNkiLPMXy";
     let uri = process.env.FRONTEND_URI || "http://localhost:3000";
     res.redirect(uri + "?access_token=" + access_token);
+    let userInfo = {
+      url: "https://api.spotify.com/v1/me",
+      headers: {
+        Authorization: "Bearer " + access_token
+      },
+      success: response => {
+        console.log(response);
+      }
+    };
+    request.get(userInfo, function(err, res, body) {
+      var info = JSON.parse(body);
+      console.log(info.id);
+      client.query(
+        "INSERT INTO users (id,  data, display_name) VALUES ($1, $2, $3)",
+        [info.id, info, info.display_name],
+        (err, res) => {
+          console.error(err);
+          client.end();
+        });
+    });
   });
-
-let userInfo = {
-  url: 'https://api.spotify.com/v1/users/calvinspnz',
-  headers: {
-    'Authorization': 'Bearer ' + 'BQAJsc0THGlaRdUccLWWPZD1zokb2xuQIrmA0ywTbDzGOnIV3hdpdp5yMJuoJt08HnscEMizxXz61Zw75p1vbbSjXgjW3TzYP38v0IYlLcS8m1BRs-9s8wMmpROBPfHKifPGV99h_8YFp3HjIQkyxR2nYCtcHtf-v-HW', 
-    'Content-Type': 'application/json'
-  },
-}
-  request.get(userInfo, function(err, res, body){
-    console.log(body);
-  })
 });
 
 let port = process.env.PORT || 8888;

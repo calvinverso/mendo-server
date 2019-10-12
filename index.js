@@ -1,16 +1,18 @@
 let express = require("express");
 let request = require("request");
 const bodyParser = require("body-parser");
-let querystring = require("querystring");
+let queryString = require("querystring");
 const { Client } = require("pg");
+const fetch = require("node-fetch");
+var SpotifyWebApi = require("spotify-web-api-node");
 
 let app = express();
+var tracker = require("./tracker.js");
 
 require("dotenv").config();
 
-let redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
 app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*"); 
+  res.header("Access-Control-Allow-Origin", "*");
   res.header(
     "Access-Control-Allow-Headers",
     "Origin, X-Requested-With, Content-Type, Accept"
@@ -27,64 +29,40 @@ const client = new Client({
 
 client.connect();
 
-app.get("/", function(req, res, next) {
-  res.send("hola");
-  console.log("paso?");
-  console.log(process.env.DATABASE_URL);
-  console.log(process.env.DB_DATABASE);
-  client.query(
-    "CREATE TABLE books (ID SERIAL PRIMARY KEY, author VARCHAR(255) NOT NULL, title VARCHAR(255) NOT NULL);",
-    (err, res) => {
-      if (err) throw err;
-      console.log("solo aqui");
-      for (let row of res.rows) {
-        console.log("paso?");
-        console.log(JSON.stringify(row));
-      }
-      //client.end();
-    }
-  );
-  next();
-});
+redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
 
 app.get("/login", function(req, res) {
+  //tracker.refreshToken(app,res);
   res.redirect(
     "https://accounts.spotify.com/authorize?" +
-      querystring.stringify({
+      queryString.stringify({
         response_type: "code",
-        client_id:
-          process.env.SPOTIFY_CLIENT_ID || "6a1792e23f7a48c8accf88c6d4991909",
-        scope: "user-read-private user-read-email user-top-read user-read-currently-playing user-read-playback-state",
+        client_id: process.env.SPOTIFY_CLIENT_ID,
+        scope: process.env.SCOPE,
         redirect_uri
       })
   );
 });
 
 app.get("/callback", (req, res) => {
-  let code = req.query.code || null;
-  let authOptions = {
+  //request.post(auth, (error, response, body) => {
+  //access_token = body.access_token
+  let auth = {
     url: "https://accounts.spotify.com/api/token",
     form: {
-      code: code,
+      code: req.query.code || null,
       redirect_uri,
-      grant_type: "authorization_code"
-    },
-    headers: {
-      Authorization:
-        "Basic " +
-        new Buffer(
-          process.env.SPOTIFY_CLIENT_ID +
-            ":" +
-            process.env.SPOTIFY_CLIENT_SECRET
-        ).toString("base64")
+      grant_type: "authorization_code",
+      client_id: process.env.SPOTIFY_CLIENT_ID,
+      client_secret: process.env.SPOTIFY_CLIENT_SECRET
     },
     json: true
   };
-  var access_token;
-  request.post(authOptions, (error, response, body) => {
-    access_token =
-      body.access_token ||
-      "BQAQV1Xws1dDOXLpcfbvIMsCHybJUjsos2drwC9oi7_xhJ8YZzUj7CRFNyEgFHCGX2p4MhYhwjXyA9O54JZz61QxJifmTpr-yOd7x0ayc3rqT3KpMbQYOBkCrTQeCGZYDq4022c2JdASB1NnMSzcq36QIsmyvzguJDNH";
+  request.post(auth, (error, response, body) => {
+    var access_token = body.access_token;
+    var refresh_token = body.refresh_token;
+
+
     let uri = process.env.FRONTEND_URI || "http://localhost:3000";
     res.redirect(uri + "?access_token=" + access_token);
     let userInfo = {
@@ -99,15 +77,20 @@ app.get("/callback", (req, res) => {
     request.get(userInfo, function(err, res, body) {
       var info = JSON.parse(body);
       console.log(info.id);
+
       client.query(
         "INSERT INTO users(id, data, display_name) SELECT $1, $2, $3 on conflict (id) do nothing;",
         [info.id, info, info.display_name],
-        (err) => {
-          if (err) throw err
-        });
+        err => {
+          if (err) throw err;
+        }
+      );
+
+      tracker.tokenRefresh(access_token, refresh_token, client, info.id);
     });
   });
 });
+//});
 
 let port = process.env.PORT || 8888;
 console.log(

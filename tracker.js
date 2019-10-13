@@ -95,37 +95,39 @@ module.exports = {
               if (error) {
                 throw error;
               }
+              var lastPlayed;
               results.rows.map((item, i) => {
                 var track = JSON.parse(item.tracks);
+                if (i == 0) {
+                  lastPlayed = track.played_at;
+                  console.log("LAST PLAYED AT: " + lastPlayed);
+                }
                 play_history.tracks.push(track);
                 console.log("TRACK " + i + " " + JSON.stringify(track));
               });
+
+              data.body.items.map((item, i) => {
+                var myTime = item.played_at;
+                if (myTime > lastPlayed) {
+                  var track = {
+                    uri: item.track.uri,
+                    played_at: item.played_at,
+                    name: item.track.name,
+                    artist: item.track.artists[0].name
+                  };
+
+                  play_history.tracks.splice(i, 0, track);
+                }
+
+                console.log(play_history);
+
+                client.query(
+                  "UPDATE users SET play_history = $1 WHERE id = $2;",
+                  [play_history, id]
+                );
+              });
             }
           );
-
-          var latestTrackTime = data.body.items.played_at;
-          data.body.items.map(item => {
-            var myTime = item.played_at;
-            if (myTime > latestTrackTime) {
-              var track = {
-                uri: item.track.uri,
-                played_at: item.played_at,
-                name: item.track.name,
-                artist: item.track.artists[0].name
-              };
-              play_history.tracks.push(track);
-              //addedTracks += JSON.stringify(track);
-            }
-          });
-          console.log("NEW SONGS TO INSERT: " + JSON.stringify(play_history));
-
-          /*
-          client.query("UPDATE users SET play_history = $1 WHERE id = $2;", [
-            JSON.stringify(tracks),
-            id
-          ]);
-
-*/
         },
         function(err) {
           console.log("Something went wrong!", err);

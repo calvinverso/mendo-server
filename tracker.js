@@ -19,68 +19,35 @@ var spotifyAPI = new SpotifyWebApi({
   clientSecret: process.env.SPOTIFY_CLIENT_SECRET,
   redirect_uri
 });
-var scopes = [
-  "user-read-private",
-  "user-top-read",
-  "user-read-currently-playing",
-  "user-read-playback-state",
-  "user-modify-playback-state"
-];
+
+var userId;
+var playHistory = [];
 module.exports = {
-  refreshToken(app, res) {
-    //app.get("/", (req, res) => {
-    var authURL = spotifyAPI.createAuthorizeURL(scopes, "state");
-    console.log(authURL);
-    res.redirect(authURL + "&redirect_uri=" + redirect_uri);
-    //});
-
-    app.get("/tracking", (req, res) => {
-      let auth = {
-        url: "https://accounts.spotify.com/api/token",
-        form: {
-          code: req.query.code || null,
-          redirect_uri,
-          grant_type: "authorization_code",
-          client_id: process.env.SPOTIFY_CLIENT_ID,
-          client_secret: process.env.SPOTIFY_CLIENT_SECRET
-        },
-        json: true
-      };
-      request.post(auth, (error, response, body) => {
-        console.log("The token expires in " + body["expires_in"]);
-        console.log("The access token is " + body["access_token"]);
-        console.log("The refresh token is " + body["refresh_token"]);
-        spotifyAPI.setAccessToken(body["access_token"]);
-        spotifyAPI.setRefreshToken(body["refresh_token"]);
-
-        this.trackPlays();
-        setInterval(() => {
-          spotifyAPI.refreshAccessToken().then(function(data) {
-            console.log("The access token has been refreshed!");
-
-            // Save the access token so that it's used in future calls
-            spotifyAPI.setAccessToken(data.body["access_token"]);
-          });
-        }, 3000000);
-      });
+  refreshToken() {
+    spotifyAPI.refreshAccessToken().then(function(data) {
+      console.log("ACCESS TOKEN REFRESHED");
+      spotifyAPI.setAccessToken(data.body["access_token"]);
     });
   },
-
-  tokenRefresh(access_token, refresh_token, client, id) {
+  async init(access_token, refresh_token) {
     spotifyAPI.setAccessToken(access_token);
     spotifyAPI.setRefreshToken(refresh_token);
-    this.trackPlays(client, id);
-    setInterval(() => {
-      spotifyAPI.refreshAccessToken().then(function(data) {
-        console.log("The access token has been refreshed!");
+    await spotifyAPI.getMe().then(data => {
+      console.log(data.body.id);
+      userId = data.body.id;
+    });
 
-        // Save the access token so that it's used in future calls
-        spotifyAPI.setAccessToken(data.body["access_token"]);
-      });
+    setInterval(() => {
+      this.refreshToken();
     }, 3000000);
   },
+  default(access_token, refresh_token, client, id) {
+    this.init(access_token, refresh_token);
+    this.trackPlays(client);
+    this.createThePlaylist(client);
+  },
 
-  trackPlays(client, id) {
+  trackPlays(client) {
     function getRecentlyPlayed() {
       spotifyAPI.getMyRecentlyPlayedTracks({ limit: 50 }).then(
         function(data) {
@@ -88,9 +55,10 @@ module.exports = {
           //console.log("Now Playing: ", data.body.item.name);
           var play_history = { tracks: [] };
 
+          var lastPlayed;
           client.query(
             "SELECT jsonb_array_elements_text(play_history->'tracks') as tracks FROM users where id = $1",
-            [id],
+            [userId],
             (error, results) => {
               if (error) {
                 throw error;
@@ -103,7 +71,7 @@ module.exports = {
                   console.log("LAST PLAYED AT: " + lastPlayed);
                 }
                 play_history.tracks.push(track);
-                console.log("TRACK " + i + " " + JSON.stringify(track));
+                //console.log("TRACK " + i + " " + JSON.stringify(track));
               });
 
               data.body.items.map((item, i) => {
@@ -119,16 +87,17 @@ module.exports = {
                   play_history.tracks.splice(i, 0, track);
                 }
 
-                console.log(play_history);
+                //console.log(play_history);
 
                 client.query(
                   "UPDATE users SET play_history = $1 WHERE id = $2;",
-                  [play_history, id]
+                  [play_history, userId]
                 );
               });
             }
           );
         },
+
         function(err) {
           console.log("Something went wrong!", err);
         }
@@ -136,120 +105,99 @@ module.exports = {
     }
     getRecentlyPlayed();
     setInterval(() => getRecentlyPlayed(), 60000);
-  }
-};
-
-/*
-spotifyAPI.getArtistAlbums('43ZHCT0cAZBISjO8DG9PnE').then(
-    function(data) {
-      console.log('Artist albums', data.body);
-    },
-    function(err) {
-      console.error(err);
-    }
-  );
-  */
-/*
-setInterval(() => {
-  spotifyAPI.refreshAccessToken().then(
-    function(data) {
-      console.log("The access token has been refreshed!");
-
-      // Save the access token so that it's used in future calls
-      spotifyApi.setAccessToken(data.body.access_token);
-    },
-    function(err) {
-      console.log("Could not refresh access token", err);
-    }
-  );
-  spotifyAPI.getMyCurrentPlaybackState({}).then(
-    function(data) {
-      // Output items
-      console.log("Now Playing: ", data.body.item.name);
-    },
-    function(err) {
-      console.log("Something went wrong!", err);
-    }
-  );
-}, 2000);
-
-/*
-let authRefresh = {
-  url: "https://accounts.spotify.com/api/token",
-  form: {
-    grant_type: "refresh_token",
-    refresh_token:
-      "AQAkoiMkP1REnq4j0WAYoQ_LwNV-BMzW22UGGtK5Rl8Li15GqmpS31y2wjJuIFAUQ5kKJtR-VrHU5ndaaOnUaR6NHL4tbDEyYqacyBjL_202099boneXzRJFnGq9_FT7AAk5uQ",
-    client_id: process.env.SPOTIFY_CLIENT_ID,
-    client_secret: process.env.SPOTIFY_CLIENT_SECRET
   },
-  json: true
-};
+  async getPlayHistoryUris(client) {
+    try {
+      await client.query(
+        "SELECT jsonb_array_elements_text(play_history->'tracks') as tracks FROM users where id = $1",
+        [userId],
+        (error, results) => {
+          if (error) {
+            throw error;
+          }
 
-function handleCurrently() {
-  request.post(authRefresh, (err, res, body) => {
-    var access_token =
-      body.access_token ||
-      "BQA0WJN_T9VbGpmZs3fZgfK1UxCgqxccBSD8w7b0_imV2zyKjhE-1mjfRomum5Rb97LbzAuiFIvuS9NCzlxAQApEqB2_UdpvrrkdOTSS9dtghpaWitQBmKpvnORMtbUHovckYReL6qS-JkQUw3EneWghMxjrcYkiV9Q10BK-aEYaYTpg";
-    let currentlyPlaying = {
-      url: "https://api.spotify.com/v1/me/player/currently-playing",
-      headers: {
-        Authorization: "Bearer " + access_token
-      },
-      success: response => {
-        console.log(response);
-      }
-    };
-    request.get(currentlyPlaying, (req, res, body) => {
-      console.log("body" + body);
-      // var info = JSON.parse(body);
-      //var playing = info.is_playing;
-
-      //
-      //console.log(info.is_playing);
-    });
-
-    fetch("https://api.spotify.com/v1/me/player/currently-playing", {
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-
-        Authorization: "Bearer " + access_token
-      }
-    })
-      .then(res => res.json())
-      .then(data => {
-        //this.setState({ userData: data });
-        console.log(data);
+          results.rows.map(item => {
+            playHistory.push(item.tracks.uri);
+          });
+        }
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  },
+  async createThePlaylist(client) {
+    this.getPlayHistoryUris(client);
+    var topArtists = [],
+      topTracks = [];
+    await spotifyAPI.getMyTopArtists({ limit: 5 }).then(data => {
+      //console.log(data.body.items);
+      data.body.items.map(item => {
+        // console.log(item.id);
+        topArtists.push(item.id);
+        //console.log("ARTIST")
       });
-  });
-}
+    });
+    console.log(topArtists.toString());
+    await spotifyAPI.getMyTopTracks({ limit: 5 }).then(data => {
+      //console.log(data.body.items);
+      data.body.items.map(item => {
+        //console.log(item.id);
+        topTracks.push(item.id);
+        //console.log("TRACK")
+      });
+    });
+    console.log(topTracks.toString());
 
-setInterval(() => handleCurrently(), 2000);
-
-/*
-    let auth = {
-      url: "https://accounts.spotify.com/api/token",
-      form: {
-        code: null,
-        redirect_uri,
-        grant_type: "authorization_code",
-        client_id: process.env.SPOTIFY_CLIENT_ID,
-        client_secret: process.env.SPOTIFY_CLIENT_SECRET
-      },
-      json: true
-    };
-    request.post(auth, (error, response, body) => {
-      var access_token = body.access_token;
-      fetch("https://api.spotify.com/v1/me/player/currently-playing", {
+    var recommendedTracks = [];
+    await fetch(
+      "https://api.spotify.com/v1/recommendations?" +
+        queryString.stringify({
+          //seed_artists: topArtists.toString(),
+          seed_tracks: topTracks.toString()
+        }),
+      {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: "Bearer " + access_token
+          Authorization: "Bearer " + spotifyAPI.getAccessToken()
         }
+      }
+    )
+      .then(res => res.json())
+      .then(data =>
+        data.tracks.map(track => {
+          console.log(track.name);
+
+          if (!playHistory.includes(track.uri)) {
+            console.log("doesnt exist");
+            recommendedTracks.push(track.uri);
+          } else {
+            console.log("you listened to that already");
+          }
+        })
+      );
+    console.log(userId);
+    console.log(recommendedTracks.toString());
+    try {
+      await spotifyAPI
+        .createPlaylist(userId, "First Mendo Playlist")
+        .then(async data => {
+          var playlistId = data.body.id;
+          console.log(playlistId);
+          await spotifyAPI.addTracksToPlaylist(playlistId, recommendedTracks);
+        });
+    } catch (error) {
+      console.error(error);
+    }
+
+    /*
+    spotifyAPI
+      .getRecommendations({ seed_artists: topArtists.toString(), seed_tracks: topTracks.toString() })
+      .then(data => {
+        console.log("RECOMMENDATIONS");
+        console.log(data);
       })
-        .then(res => res.json())
-        .then(data => console.log(data.item.name));
-    });
-  }, 3000);
-  */
+      .catch(console.log("sorry bro"));
+      */
+  }
+};

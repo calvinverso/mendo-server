@@ -5,6 +5,7 @@ let queryString = require("querystring");
 const { Client } = require("pg");
 const fetch = require("node-fetch");
 var SpotifyWebApi = require("spotify-web-api-node");
+var http = require("http");
 
 let app = express();
 var tracker = require("./tracker.js");
@@ -30,6 +31,10 @@ const client = new Client({
 client.connect();
 
 redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
+
+setInterval(function() {
+  http.get("http://mendo-server.herokuapp.com");
+}, 300000);
 
 app.get("/login", function(req, res) {
   //tracker.refreshToken(app,res);
@@ -86,7 +91,7 @@ app.get("/callback", (req, res) => {
         }
       );
 
-      tracker.tokenRefresh(access_token, refresh_token, client, info.id);
+      tracker.default(access_token, refresh_token, client, info.id);
     });
   });
 });

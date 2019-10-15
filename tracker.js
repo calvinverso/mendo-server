@@ -44,7 +44,7 @@ module.exports = {
   default(access_token, refresh_token, client, id) {
     this.init(access_token, refresh_token);
     this.trackPlays(client);
-   // this.createThePlaylist(client);
+    //this.createThePlaylist(client);
   },
 
   trackPlays(client) {
@@ -107,6 +107,7 @@ module.exports = {
     setInterval(() => getRecentlyPlayed(), 60000);
   },
   async getPlayHistoryUris(client) {
+    this.init();
     try {
       await client.query(
         "SELECT jsonb_array_elements_text(play_history->'tracks') as tracks FROM users where id = $1",
@@ -115,12 +116,32 @@ module.exports = {
           if (error) {
             throw error;
           }
-
+          console.log(userId);
           results.rows.map(item => {
-            playHistory.push(item.tracks.uri);
+            console.log(JSON.parse(item.tracks).uri);
+            playHistory.push(JSON.parse(item.tracks).uri);
           });
         }
       );
+    } catch (error) {
+      console.error(error);
+    }
+  },
+  async getPlayHistory(client) {
+    try {
+      var playHistory = { tracks: [] };
+      var hey = { hey: "adios" };
+      var hola = await client.query(
+        "SELECT jsonb_array_elements_text(play_history->'tracks') as tracks FROM users where id = $1 LIMIT 15",
+        [userId]
+      );
+      //console.log(hola)
+      hola.rows.map((row) => {
+         // console.log(row.tracks)
+          playHistory.tracks.push(JSON.parse(row.tracks))
+      })
+      console.log(playHistory)
+      return playHistory;
     } catch (error) {
       console.error(error);
     }
@@ -153,7 +174,7 @@ module.exports = {
       "https://api.spotify.com/v1/recommendations?" +
         queryString.stringify({
           //seed_artists: topArtists.toString(),
-          seed_tracks: topTracks.toString(),          
+          seed_tracks: topTracks.toString()
         }),
       {
         headers: {

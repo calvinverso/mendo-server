@@ -49,6 +49,15 @@ app.get("/login", function(req, res) {
   );
 });
 
+app.get("/playhistory", async (req, res) => {
+  tracker.getPlayHistory(client).then((result) =>{
+    console.log(result);
+    res.send(result)
+  })
+  //console.log(ans);
+  //res.send(ans);
+});
+
 app.get("/callback", (req, res) => {
   //request.post(auth, (error, response, body) => {
   //access_token = body.access_token
@@ -67,9 +76,9 @@ app.get("/callback", (req, res) => {
     var access_token = body.access_token;
     var refresh_token = body.refresh_token;
 
-
     let uri = process.env.FRONTEND_URI || "http://localhost:3000";
     res.redirect(uri + "?access_token=" + access_token);
+    //res.json(tracker.getPlayHistory())
     let userInfo = {
       url: "https://api.spotify.com/v1/me",
       headers: {

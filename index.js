@@ -33,7 +33,7 @@ client.connect();
 redirect_uri = process.env.REDIRECT_URI || "http://localhost:8888/callback";
 
 setInterval(function() {
-  http.get("http://mendo-server.herokuapp.com");
+  http.get("http://mendo-server.herokuapp.com/");
 }, 300000);
 
 app.get("/login", function(req, res) {

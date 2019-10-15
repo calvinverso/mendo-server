@@ -44,7 +44,7 @@ module.exports = {
   default(access_token, refresh_token, client, id) {
     this.init(access_token, refresh_token);
     this.trackPlays(client);
-    this.createThePlaylist(client);
+   // this.createThePlaylist(client);
   },
 
   trackPlays(client) {
@@ -76,7 +76,7 @@ module.exports = {
 
               data.body.items.map((item, i) => {
                 var myTime = item.played_at;
-                if (myTime > lastPlayed) {
+                if (!lastPlayed || myTime > lastPlayed) {
                   var track = {
                     uri: item.track.uri,
                     played_at: item.played_at,
@@ -153,7 +153,7 @@ module.exports = {
       "https://api.spotify.com/v1/recommendations?" +
         queryString.stringify({
           //seed_artists: topArtists.toString(),
-          seed_tracks: topTracks.toString()
+          seed_tracks: topTracks.toString(),          
         }),
       {
         headers: {

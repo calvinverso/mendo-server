@@ -182,7 +182,8 @@ module.exports = {
           target_energy: target_energy,
           target_danceability: target_danceability,
           target_valence: target_valence,
-          target_popularity: target_popularity
+          target_popularity: target_popularity,
+          limit: 25
         }),
       {
         headers: {
@@ -210,17 +211,18 @@ module.exports = {
 
     try {
       var playlistInfo = {};
+      var playlistId = {};
       await spotifyAPI
         .createPlaylist(userId, playlist_name)
         .then(async data => {
-          var playlistId = data.body.id;
-          console.log("PLAYLISY");
+          playlistId = {id: data.body.id};
+          console.log("PLAYLIST");
           console.log(data.body);
           playlistInfo = data.body;
 
-          await spotifyAPI.addTracksToPlaylist(playlistId, recommendedTracks);
+          await spotifyAPI.addTracksToPlaylist(data.body.id, recommendedTracks);
         });
-      return playlistInfo;
+      return playlistId;
     } catch (error) {
       console.error(error);
     }

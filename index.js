@@ -50,12 +50,29 @@ app.get("/login", function(req, res) {
 });
 
 app.get("/playhistory", async (req, res) => {
-  tracker.getPlayHistory(client).then((result) =>{
+  tracker.getPlayHistory(client).then(result => {
     console.log(result);
-    res.send(result)
-  })
+    res.send(result);
+  });
   //console.log(ans);
   //res.send(ans);
+});
+
+app.get("/createplaylist", (req, res) => {
+  tracker
+    .createThePlaylist(
+      client,
+      req.query.access_token,
+      req.query.target_energy,
+      req.query.target_danceability,
+      req.query.target_valence,
+      req.query.target_popularity,
+      req.query.playlist_name
+    )
+    .then(result => {
+      console.log(result);
+      res.send(result);
+    });
 });
 
 app.get("/callback", (req, res) => {
@@ -78,6 +95,7 @@ app.get("/callback", (req, res) => {
 
     let uri = process.env.FRONTEND_URI || "http://localhost:3000";
     res.redirect(uri + "?access_token=" + access_token);
+    //res.send(refresh_token)
     //res.json(tracker.getPlayHistory())
     let userInfo = {
       url: "https://api.spotify.com/v1/me",

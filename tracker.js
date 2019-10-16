@@ -107,22 +107,22 @@ module.exports = {
     setInterval(() => getRecentlyPlayed(), 60000);
   },
   async getPlayHistoryUris(client) {
-    this.init();
+    this.init(access_token, "");
     try {
-      await client.query(
+      var results = await client.query(
         "SELECT jsonb_array_elements_text(play_history->'tracks') as tracks FROM users where id = $1",
         [userId],
         (error, results) => {
           if (error) {
             throw error;
           }
-          console.log(userId);
-          results.rows.map(item => {
-            console.log(JSON.parse(item.tracks).uri);
-            playHistory.push(JSON.parse(item.tracks).uri);
-          });
         }
       );
+      console.log(userId);
+      results.rows.map(item => {
+        console.log(JSON.parse(item.tracks).uri);
+        playHistory.push(JSON.parse(item.tracks).uri);
+      });
     } catch (error) {
       console.error(error);
     }
@@ -136,18 +136,26 @@ module.exports = {
         [userId]
       );
       //console.log(hola)
-      hola.rows.map((row) => {
-         // console.log(row.tracks)
-          playHistory.tracks.push(JSON.parse(row.tracks))
-      })
-      console.log(playHistory)
+      hola.rows.map(row => {
+        // console.log(row.tracks)
+        playHistory.tracks.push(JSON.parse(row.tracks));
+      });
+      console.log(playHistory);
       return playHistory;
     } catch (error) {
       console.error(error);
     }
   },
-  async createThePlaylist(client) {
-    this.getPlayHistoryUris(client);
+  async createThePlaylist(
+    client,
+    access_token,
+    target_energy,
+    target_danceability,
+    target_valence,
+    target_popularity,
+    playlist_name
+  ) {
+    this.getPlayHistoryUris(client, access_token);
     var topArtists = [],
       topTracks = [];
     await spotifyAPI.getMyTopArtists({ limit: 5 }).then(data => {
@@ -174,7 +182,11 @@ module.exports = {
       "https://api.spotify.com/v1/recommendations?" +
         queryString.stringify({
           //seed_artists: topArtists.toString(),
-          seed_tracks: topTracks.toString()
+          seed_tracks: topTracks.toString(),
+          target_energy: target_energy,
+          target_danceability: target_danceability,
+          target_valence: target_valence,
+          target_popularity: target_popularity
         }),
       {
         headers: {
@@ -201,10 +213,11 @@ module.exports = {
     console.log(recommendedTracks.toString());
     try {
       await spotifyAPI
-        .createPlaylist(userId, "First Mendo Playlist")
+        .createPlaylist(userId, playlist_name)
         .then(async data => {
           var playlistId = data.body.id;
-          console.log(playlistId);
+          console.log("PLAYLISY");
+          console.log(data.body);
           await spotifyAPI.addTracksToPlaylist(playlistId, recommendedTracks);
         });
     } catch (error) {

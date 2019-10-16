@@ -59,6 +59,7 @@ app.get("/playhistory", async (req, res) => {
 });
 
 app.get("/createplaylist", (req, res) => {
+  console.log(req.query);
   tracker
     .createThePlaylist(
       client,

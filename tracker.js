@@ -32,11 +32,11 @@ module.exports = {
   async init(access_token, refresh_token) {
     spotifyAPI.setAccessToken(access_token);
     spotifyAPI.setRefreshToken(refresh_token);
+
     await spotifyAPI.getMe().then(data => {
       console.log(data.body.id);
       userId = data.body.id;
     });
-
     setInterval(() => {
       this.refreshToken();
     }, 3000000);
@@ -106,19 +106,15 @@ module.exports = {
     getRecentlyPlayed();
     setInterval(() => getRecentlyPlayed(), 60000);
   },
-  async getPlayHistoryUris(client) {
-    this.init(access_token, "");
+  async getPlayHistoryUris(client, access_token) {
+    await this.init(access_token, "");
+    console.log("USER ID: " + userId);
     try {
       var results = await client.query(
         "SELECT jsonb_array_elements_text(play_history->'tracks') as tracks FROM users where id = $1",
-        [userId],
-        (error, results) => {
-          if (error) {
-            throw error;
-          }
-        }
+        [userId]
       );
-      console.log(userId);
+      console.log(results);
       results.rows.map(item => {
         console.log(JSON.parse(item.tracks).uri);
         playHistory.push(JSON.parse(item.tracks).uri);
@@ -211,15 +207,20 @@ module.exports = {
       );
     console.log(userId);
     console.log(recommendedTracks.toString());
+
     try {
+      var playlistInfo = {};
       await spotifyAPI
         .createPlaylist(userId, playlist_name)
         .then(async data => {
           var playlistId = data.body.id;
           console.log("PLAYLISY");
           console.log(data.body);
+          playlistInfo = data.body;
+
           await spotifyAPI.addTracksToPlaylist(playlistId, recommendedTracks);
         });
+      return playlistInfo;
     } catch (error) {
       console.error(error);
     }

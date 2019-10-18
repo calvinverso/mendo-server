@@ -24,7 +24,16 @@ client.connect();
 
 var userId;
 /**
- * Sets authorization token to access Spotify API
+ * Refreshes a user's access token
+ */
+function refreshToken() {
+  spotifyAPI.refreshAccessToken().then(function(data) {
+    console.log("ACCESS TOKEN REFRESHED");
+    spotifyAPI.setAccessToken(data.body["access_token"]);
+  });
+}
+/**
+ * Sets authorization token to access Spotify API and refreshes token every 60 minutes
  * @param {string} access_token Spotify API access token
  * @param {string} refresh_token Spotify API refresh token
  */
@@ -37,8 +46,8 @@ async function init(access_token, refresh_token) {
     userId = data.body.id;
   });
   setInterval(() => {
-    this.refreshToken();
-  }, 3000000);
+    refreshToken();
+  }, 3600000);
 }
 
 /**
@@ -56,7 +65,9 @@ function addUserToDatabase(id, info, display_name) {
     }
   );
 }
-
+/**
+ * Gets a user's complete play history from database
+ */
 async function getPlayHistory() {
   try {
     var response = await client.query(
@@ -68,6 +79,10 @@ async function getPlayHistory() {
     console.error(error);
   }
 }
+/**
+ * Initializes and obtains all tracks' uris from database
+ * @param {string} access_token
+ */
 async function getPlayHistoryUris(access_token) {
   await init(access_token, "");
   console.log("USER ID: " + userId);
@@ -83,7 +98,9 @@ async function getPlayHistoryUris(access_token) {
     console.error(error);
   }
 }
-
+/**
+ * Tracks a users listening activity to add to database every 50 minutes
+ */
 function trackPlays() {
   function getRecentlyPlayed() {
     spotifyAPI.getMyRecentlyPlayedTracks({ limit: 50 }).then(
@@ -123,9 +140,15 @@ function trackPlays() {
     );
   }
   getRecentlyPlayed();
-  setInterval(() => getRecentlyPlayed(), 60000);
+  setInterval(() => getRecentlyPlayed(), 3000000);
 }
 
+/**
+ * Initializes token in Spotify API and starts tracking plays
+ * @param {string} access_token
+ * @param {string} refresh_token
+ * @param {string} id
+ */
 function start(access_token, refresh_token, id) {
   init(access_token, refresh_token);
   trackPlays();
@@ -133,7 +156,7 @@ function start(access_token, refresh_token, id) {
 
 /**
  * Creates playlist description according to parameters established by user
- * @param {float} energy 0.0 to 1.0 
+ * @param {float} energy 0.0 to 1.0
  * @param {float} danceability 0.0 to 1.0
  * @param {float} valence 0.0 to 1.0
  * @param {int} popularity 0 to 100
@@ -169,6 +192,17 @@ function createPlaylistDescription(energy, danceability, valence, popularity) {
   desc = desc + " playlist created using Mendo";
   return desc;
 }
+
+/**
+ * Obtains a user's top tracks and searches for songs a user might like
+ * according to the parameters provided
+ * @param {*} target_energy
+ * @param {*} target_danceability
+ * @param {*} target_popularity
+ * @param {*} target_valence
+ * @param {*} access_token
+ * @returns {[]} Recommended tracks
+ */
 async function getRecommendedTracks(
   target_energy,
   target_danceability,
@@ -236,7 +270,6 @@ async function getRecommendedTracks(
         limit: 25
       })
       .then(data => {
-        console.log(data.body);
         data.body.tracks.map((track, i) => {
           console.log(i);
           console.log(track.name);
@@ -249,14 +282,36 @@ async function getRecommendedTracks(
           }
         });
       });
-    console.log(userId);
-    console.log(recommendedTracks.toString());
-
     return recommendedTracks;
   } catch (err) {
     console.error(err);
   }
 }
+
+/**
+ * Adds created Mendo playlist to database
+ * @param {string} id The user's Spotify ID to insert in database
+ * @param {string} name The name of the playlist
+ */
+async function addPlaylistToDatabase(id, name) {
+  var result = await client.query(
+    "SELECT jsonb_array_elements_text(created_playlists->'playlists') AS playlists FROM users WHERE id = $1",
+    [userId]
+  );
+  var myPlaylists = [];
+  result.rows.forEach(row => {
+    var playlist = JSON.parse(row.playlists);
+    myPlaylists.push(playlist);
+  });
+  //console.log(myPlaylists);
+  myPlaylists.push({id: id, name: name});
+  var createdPlaylists = { playlists: myPlaylists };
+  client.query("UPDATE users SET created_playlists = $1 WHERE id = $2;", [
+    createdPlaylists,
+    userId
+  ]);
+}
+
 module.exports = {
   /**
    * Authorizes and logs in to Spotify API
@@ -275,6 +330,11 @@ module.exports = {
     );
   },
 
+  /**
+   * Callback function after a successful login
+   * @param {Request} req
+   * @param {Response} res
+   */
   callback(req, res) {
     let auth = {
       url: "https://accounts.spotify.com/api/token",
@@ -305,20 +365,22 @@ module.exports = {
       };
       request.get(userInfo, function(err, res, body) {
         var info = JSON.parse(body);
-        console.log(info.id);
-
         addUserToDatabase(info.id, info, info.display_name);
         start(access_token, refresh_token, info.id);
       });
     });
   },
 
-  refreshToken() {
-    spotifyAPI.refreshAccessToken().then(function(data) {
-      console.log("ACCESS TOKEN REFRESHED");
-      spotifyAPI.setAccessToken(data.body["access_token"]);
-    });
-  },
+  /**
+   * Creates a playlist on a user's account and adds the recommended tracks
+   * @param {string} access_token
+   * @param {number} target_energy
+   * @param {number} target_danceability
+   * @param {number} target_valence
+   * @param {number} target_popularity
+   * @param {id} playlist_name
+   * @returns The playlist id
+   */
   async createThePlaylist(
     access_token,
     target_energy,
@@ -334,7 +396,6 @@ module.exports = {
       target_popularity,
       access_token
     );
-    console.log(recommendedTracks);
 
     var description = createPlaylistDescription(
       target_energy,
@@ -351,7 +412,7 @@ module.exports = {
           playlistId = { id: data.body.id };
           console.log("PLAYLIST");
           console.log(data.body);
-
+          addPlaylistToDatabase(data.body.id, playlist_name);
           await spotifyAPI.addTracksToPlaylist(data.body.id, recommendedTracks);
           await spotifyAPI.changePlaylistDetails(data.body.id, {
             description: description || "Created using Mendo"

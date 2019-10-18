@@ -30,19 +30,12 @@ setInterval(function() {
   http.get("http://mendo-server.herokuapp.com/");
 }, 300000);
 
+//Logs user in with spotify credentials and redirects to callback function
 app.get("/login", function(request, response) {
   tracker.login(response);
 });
 
-/*
-app.get("/playhistory", async (request, response) => {
-  tracker.getPlayHistory().then(result => {
-    console.log(result);
-    response.send(result);
-  });
-});
-*/
-
+//Endpoint requested by client side app that creates playlist according to certain parameters
 app.get("/createplaylist", (req, res) => {
   console.log(req.query);
   tracker
@@ -60,10 +53,22 @@ app.get("/createplaylist", (req, res) => {
     });
 });
 
+//Callback endpoint after a successful login
 app.get("/callback", (req, res) => {
   tracker.callback(req, res);
 });
-//});
+
+
+/*
+//Gets a user's play history (deprecated)
+app.get("/playhistory", async (request, response) => {
+  tracker.getPlayHistory().then(result => {
+    console.log(result);
+    response.send(result);
+  });
+});
+*/
+
 
 let port = process.env.PORT || 8888;
 console.log(

@@ -133,35 +133,35 @@ function start(access_token, refresh_token, id) {
 
 /**
  * Creates playlist description according to parameters established by user
- * @param {string} energy
- * @param {string} danceability
- * @param {string} valence
- * @param {string} popularity
+ * @param {float} energy 0.0 to 1.0 
+ * @param {float} danceability 0.0 to 1.0
+ * @param {float} valence 0.0 to 1.0
+ * @param {int} popularity 0 to 100
  */
 function createPlaylistDescription(energy, danceability, valence, popularity) {
   var desc = "A ";
-  if (energy > 6) {
+  if (energy > 0.6) {
     desc = desc + "high energy, ";
-  } else if (energy <= 4) {
+  } else if (energy <= 0.4) {
     desc = desc + "low energy, ";
   } else {
     desc = desc + "mid energy, ";
   }
-  if (danceability > 6) {
+  if (danceability > 0.6) {
     desc = desc + "danceable, ";
-  } else if (danceability <= 4) {
+  } else if (danceability <= 0.4) {
     desc = desc + "chill, ";
   }
 
-  if (valence > 6) {
+  if (valence > 0.6) {
     desc = desc + "cheerful, ";
-  } else if (valence <= 4) {
+  } else if (valence <= 0.4) {
     desc = desc + "somber, ";
   }
 
-  if (popularity > 6) {
+  if (popularity > 60) {
     desc = desc + "trendy ";
-  } else if (popularity <= 4) {
+  } else if (popularity <= 40) {
     desc = desc + "niche ";
   } else {
     desc = desc + "hot ";

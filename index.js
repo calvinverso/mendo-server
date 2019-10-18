@@ -63,6 +63,7 @@ app.get("/createplaylist", (req, res) => {
 app.get("/callback", (req, res) => {
   tracker.callback(req, res);
 });
+//});
 
 let port = process.env.PORT || 8888;
 console.log(

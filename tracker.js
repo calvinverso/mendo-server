@@ -176,36 +176,39 @@ async function getRecommendedTracks(
   target_valence,
   access_token
 ) {
-  var topArtists = [],
-    topTracks = [],
-    recommendedTracks = [];
-  var playHistory = await getPlayHistoryUris(access_token);
+  try {
+    var topArtists = [],
+      topTracks = [],
+      recommendedTracks = [];
+    var playHistory = await getPlayHistoryUris(access_token);
 
-  await spotifyAPI
-    .getMyTopArtists({ limit: 5, time_range: "short_term" })
-    .then(data => {
-      data.body.items.map(item => {
-        topArtists.push(item.id);
+    await spotifyAPI
+      .getMyTopArtists({ limit: 5, time_range: "short_term" })
+      .then(data => {
+        data.body.items.map(item => {
+          topArtists.push(item.id);
+        });
       });
-    });
 
-  await spotifyAPI
-    .getMyTopTracks({ limit: 5, time_range: "short_term" })
-    .then(data => {
-      data.body.items.map(item => {
-        topTracks.push(item.id);
+    await spotifyAPI
+      .getMyTopTracks({ limit: 5, time_range: "short_term" })
+      .then(data => {
+        data.body.items.map(item => {
+          topTracks.push(item.id);
+        });
       });
-    });
-
+    /*
   await fetch(
     "https://api.spotify.com/v1/recommendations?" +
       queryString.stringify({
         seed_artists: topArtists.toString(),
         //seed_tracks: topTracks.toString(),
-        target_energy: target_energy,
-        target_danceability: target_danceability,
-        target_valence: target_valence,
-        target_popularity: target_popularity,
+        /*
+        target_energy: parseFloat(target_energy),
+        target_danceability: parseFloat(target_danceability),
+        target_valence: parseFloat(target_valence),
+        target_popularity: parseFloat(target_popularity),
+
         limit: 25
       }),
     {
@@ -217,23 +220,42 @@ async function getRecommendedTracks(
     }
   )
     .then(res => res.json())
-    .then(data =>
-      data.tracks.map((track, i) => {
-        console.log(i);
-        console.log(track.name);
 
-        if (!playHistory.includes(track.uri)) {
-          console.log("Check this one out");
-          recommendedTracks.push(track.uri);
-        } else {
-          console.log("You listened to that already");
-        }
+
+
+    */
+
+    await spotifyAPI
+      .getRecommendations({
+        seed_tracks: topTracks.toString(),
+        //seed_artists: topArtists.toString(),
+        target_energy: parseFloat(target_energy).toFixed(1),
+        target_danceability: parseFloat(target_danceability).toFixed(1),
+        target_valence: parseFloat(target_valence).toFixed(1),
+        target_popularity: parseInt(target_popularity),
+        limit: 25
       })
-    );
-  console.log(userId);
-  //console.log(recommendedTracks.toString());
+      .then(data => {
+        console.log(data.body);
+        data.body.tracks.map((track, i) => {
+          console.log(i);
+          console.log(track.name);
 
-  return recommendedTracks
+          if (!playHistory.includes(track.uri)) {
+            console.log("Check this one out");
+            recommendedTracks.push(track.uri);
+          } else {
+            console.log("You listened to that already");
+          }
+        });
+      });
+    console.log(userId);
+    console.log(recommendedTracks.toString());
+
+    return recommendedTracks;
+  } catch (err) {
+    console.error(err);
+  }
 }
 module.exports = {
   /**
@@ -305,7 +327,6 @@ module.exports = {
     target_popularity,
     playlist_name
   ) {
-
     var recommendedTracks = await getRecommendedTracks(
       target_energy,
       target_danceability,
@@ -313,7 +334,7 @@ module.exports = {
       target_popularity,
       access_token
     );
-    console.log(recommendedTracks)
+    console.log(recommendedTracks);
 
     var description = createPlaylistDescription(
       target_energy,
@@ -341,7 +362,7 @@ module.exports = {
       console.error(error);
     }
   }
-    /*
+  /*
   async getPlayHistory() {
     try {
       var playHistory = { tracks: [] };
